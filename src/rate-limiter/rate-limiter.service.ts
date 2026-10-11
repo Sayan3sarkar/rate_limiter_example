@@ -43,12 +43,12 @@ export class FixedWindowRateLimiter {
     const resetAt = windowStart + policy.windowMs;
     const decision = { key, policy: policyName, limit: policy.limit, resetAt };
 
-    if (state.count > policy.limit) {
+    if (state.count >= policy.limit) {
       return {
         ...decision,
         allowed: false,
         remaining: 0,
-        retryAfterMs: Math.ceil((resetAt - now) / 1000),
+        retryAfterMs: resetAt - now,
       };
     }
 
@@ -65,9 +65,8 @@ export class FixedWindowRateLimiter {
     const policy = this.getPolicy(policyName);
     const state = this.windows.get(this.getStorageKey(policyName, key));
 
-    const windowStart =
-      state?.windowStart ?? this.getWindowStart(this.now(), policy.windowMs);
-    const used = state?.count ?? 0;
+    const windowStart = this.getWindowStart(this.now(), policy.windowMs);
+    const used = state?.windowStart === windowStart ? state.count : 0;
 
     return {
       key,
@@ -80,11 +79,10 @@ export class FixedWindowRateLimiter {
   }
 
   private getPolicy(name: string): Policy {
-    const policy = this.policies[name];
-    if (!policy)
+    if (!Object.hasOwn(this.policies, name))
       throw new NotFoundError(`Unknown policy "${name}"`, "POLICY_NOT_FOUND");
 
-    return policy;
+    return this.policies[name];
   }
 
   private getWindowStart(now: number, windowMs: number): number {
