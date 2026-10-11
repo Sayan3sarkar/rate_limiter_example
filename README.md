@@ -27,7 +27,9 @@ The server starts on `http://localhost:3000` by default.
 | `npm run dev`       | Run the server in watch mode with `tsx`      |
 | `npm run build`     | Compile TypeScript to `dist/`                |
 | `npm start`         | Run the compiled server from `dist/`         |
-| `npm run typecheck` | Type-check without emitting files            |
+| `npm run typecheck` | Type-check `src/` and `tests/` without emitting files |
+| `npm test`          | Run the Jest unit and integration tests      |
+| `npm run test:coverage` | Run the tests with a coverage report (`coverage/`) |
 
 ## Environment variables
 
@@ -116,4 +118,9 @@ src/
 ├── context.ts     # Registers controllers and exposes their routers
 ├── app.ts         # Configures the Express app (middleware, routes)
 └── server.ts      # Entry point: starts the HTTP server, handles graceful shutdown
+
+tests/
+├── helpers/       # Fake clock and test app builder
+├── unit/          # Service, schema, validation, errors, middleware, config
+└── integration/   # HTTP tests via Supertest
 ```
