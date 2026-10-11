@@ -22,7 +22,8 @@
   "homepage": "https://github.com/Sayan3sarkar/rate_limiter_example#readme",
   "dependencies": {
     "cors": "^2.8.6",
-    "express": "^5.3.0"
+    "express": "^5.3.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
