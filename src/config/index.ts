@@ -1,3 +1,5 @@
+import { DEFAULT_MAX_KEYS } from "./policies";
+
 try {
   process.loadEnvFile();
 } catch {
@@ -15,6 +17,11 @@ class Config {
 
   get prefix(): string {
     return process.env.PREFIX ?? "/rate_limiter";
+  }
+
+  get rateLimitMaxKeys(): number {
+    const value = Number(process.env.RATE_LIMIT_MAX_KEYS);
+    return Number.isInteger(value) && value > 0 ? value : DEFAULT_MAX_KEYS;
   }
 }
 

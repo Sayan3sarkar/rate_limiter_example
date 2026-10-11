@@ -40,6 +40,7 @@ Variables are loaded from `.env` and exposed through the `Config` class in [`src
 | `NODE_ENV` | `development`   | Environment the app runs in       |
 | `PORT`     | `3000`          | Port the HTTP server listens on   |
 | `PREFIX`   | `/rate_limiter` | Base path all routes are mounted on |
+| `RATE_LIMIT_MAX_KEYS` | `10000` | Maximum number of `(policy, key)` windows held in memory |
 
 ## API
 
@@ -102,12 +103,17 @@ Policies are defined in [`src/config/policies.ts`](src/config/policies.ts):
 | `login`   | 5     | 60s    |
 | `search`  | 30    | 10s    |
 
-Counters are kept in memory, so they are per-process and reset on restart.
+Counters are kept in memory, so they are per-process and reset on restart. They are stored in an LRU cache (`src/cache`):
+
+- At most `RATE_LIMIT_MAX_KEYS` `(policy, key)` windows are held. When the cache is full, the least recently used one is evicted.
+- A stored window from an earlier period counts as empty, so windows that have ended stop mattering and are the first to be evicted.
+- `POST /v1/allow` marks a key as recently used; `GET /v1/status` does not.
 
 ## Project structure
 
 ```
 src/
+├── cache/         # LRU cache used to store rate limit windows
 ├── config/        # Config class with a getter per environment variable, rate limit policies
 ├── errors/        # HttpError and its subclasses
 ├── health/        # Health check controller
