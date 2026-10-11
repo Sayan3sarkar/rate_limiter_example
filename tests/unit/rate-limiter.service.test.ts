@@ -247,6 +247,104 @@ describe("FixedWindowRateLimiter", () => {
     });
   });
 
+  describe("bounded window storage", () => {
+    const createLimiter = (maxKeys: number) =>
+      new FixedWindowRateLimiter(POLICIES, clock.now, maxKeys);
+
+    it("starts with no tracked keys", () => {
+      expect(limiter.trackedKeys).toBe(0);
+    });
+
+    it("tracks one window per (policy, key) pair", () => {
+      limiter.allow("user-1", "basic");
+      limiter.allow("user-1", "basic");
+      limiter.allow("user-1", "single");
+      limiter.allow("user-2", "basic");
+
+      expect(limiter.trackedKeys).toBe(3);
+    });
+
+    it("does not track keys that are only checked with status()", () => {
+      limiter.status("user-1", "basic");
+
+      expect(limiter.trackedKeys).toBe(0);
+    });
+
+    it("holds at most 10,000 windows by default", () => {
+      for (let i = 0; i < 10_005; i++) limiter.allow(`user-${i}`, "minute");
+
+      expect(limiter.trackedKeys).toBe(10_000);
+    });
+
+    it.each([1, 2, 50])("holds at most maxKeys (%i) windows", (maxKeys) => {
+      const bounded = createLimiter(maxKeys);
+
+      for (let i = 0; i < maxKeys + 5; i++) bounded.allow(`user-${i}`, "minute");
+
+      expect(bounded.trackedKeys).toBe(maxKeys);
+    });
+
+    it("restarts the counter of an evicted key", () => {
+      const bounded = createLimiter(2);
+      bounded.allow("user-1", "minute");
+      bounded.allow("user-1", "minute");
+      bounded.allow("user-2", "minute");
+
+      bounded.allow("user-3", "minute");
+
+      expect(bounded.status("user-1", "minute").used).toBe(0);
+      expect(bounded.allow("user-1", "minute")).toMatchObject({ allowed: true, remaining: 1 });
+    });
+
+    it("keeps a key active when allow() is called on it", () => {
+      const bounded = createLimiter(2);
+      bounded.allow("user-1", "minute");
+      bounded.allow("user-2", "minute");
+      bounded.allow("user-1", "minute");
+
+      bounded.allow("user-3", "minute");
+
+      expect(bounded.status("user-1", "minute").used).toBe(2);
+      expect(bounded.status("user-2", "minute").used).toBe(0);
+    });
+
+    it("does not keep a key active when only status() is called on it", () => {
+      const bounded = createLimiter(2);
+      bounded.allow("user-1", "minute");
+      bounded.allow("user-2", "minute");
+      bounded.status("user-1", "minute");
+
+      bounded.allow("user-3", "minute");
+
+      expect(bounded.status("user-1", "minute").used).toBe(0);
+      expect(bounded.status("user-2", "minute").used).toBe(1);
+    });
+
+    it("evicts an idle key whose window has ended before keys still in use", () => {
+      const bounded = createLimiter(2);
+      bounded.allow("user-1", "basic");
+      bounded.allow("user-2", "minute");
+
+      clock.advance(1.5 * WINDOW_MS);
+      bounded.allow("user-3", "minute");
+
+      expect(bounded.trackedKeys).toBe(2);
+      expect(bounded.status("user-2", "minute").used).toBe(1);
+      expect(bounded.status("user-3", "minute").used).toBe(1);
+    });
+
+    it("still counts correctly within a window after other keys come and go", () => {
+      const bounded = createLimiter(3);
+      bounded.allow("user-1", "basic");
+      bounded.allow("user-2", "basic");
+      bounded.allow("user-1", "basic");
+      bounded.allow("user-3", "basic");
+
+      expect(bounded.allow("user-1", "basic")).toMatchObject({ allowed: true, remaining: 0 });
+      expect(bounded.allow("user-1", "basic").allowed).toBe(false);
+    });
+  });
+
   describe.each(["allow", "status"] as const)("unknown policies in %s()", (method) => {
     it.each([
       "nope",

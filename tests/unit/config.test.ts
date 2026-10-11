@@ -55,6 +55,24 @@ describe("config", () => {
     });
   });
 
+  describe("rateLimitMaxKeys", () => {
+    it.each([
+      { value: "500", expected: 500 },
+      { value: "1", expected: 1 },
+      { value: undefined, expected: 10_000 },
+      { value: "", expected: 10_000 },
+      { value: "0", expected: 10_000 },
+      { value: "-5", expected: 10_000 },
+      { value: "abc", expected: 10_000 },
+      { value: "1.5", expected: 10_000 },
+    ])("returns $expected when RATE_LIMIT_MAX_KEYS is $value", ({ value, expected }) => {
+      if (value === undefined) delete process.env.RATE_LIMIT_MAX_KEYS;
+      else process.env.RATE_LIMIT_MAX_KEYS = value;
+
+      expect(config.rateLimitMaxKeys).toBe(expected);
+    });
+  });
+
   it("reads values on every access, not once at startup", () => {
     process.env.PORT = "4000";
     expect(config.port).toBe(4000);

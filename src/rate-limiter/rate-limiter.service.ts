@@ -1,4 +1,5 @@
-import { Policy } from "../config/policies";
+import { LruCache } from "../cache";
+import { DEFAULT_MAX_KEYS, Policy } from "../config/policies";
 import { NotFoundError } from "../errors";
 import {
   RateLimitDecision,
@@ -18,14 +19,26 @@ type WindowState = {
  * Unix epoch. Each `(policy, key)` pair gets a counter per window that resets
  * when the next window begins. State is held in memory, so it is per-process
  * and lost on restart.
+ *
+ * Windows are stored in an LRU cache capped at `maxKeys` entries. A stored
+ * window from an earlier period counts as empty, and since its key is no
+ * longer being used it drifts to the left of the cache and is evicted first.
  */
 export class FixedWindowRateLimiter {
-  private readonly windows = new Map<string, WindowState>();
+  private readonly windows: LruCache<string, WindowState>;
 
   constructor(
     private readonly policies: Record<string, Policy>,
     private readonly now: () => number = Date.now,
-  ) {}
+    maxKeys: number = DEFAULT_MAX_KEYS,
+  ) {
+    this.windows = new LruCache(maxKeys);
+  }
+
+  /** Number of `(policy, key)` windows currently held in memory. */
+  get trackedKeys(): number {
+    return this.windows.size;
+  }
 
   /** Records a request for `key` under `policyName` and decides whether it is allowed. */
   allow(key: string, policyName: string): RateLimitDecision {
@@ -63,7 +76,7 @@ export class FixedWindowRateLimiter {
   /** Reports the current window's usage for `key` without consuming a request. */
   status(key: string, policyName: string): RateLimitStatus {
     const policy = this.getPolicy(policyName);
-    const state = this.windows.get(this.getStorageKey(policyName, key));
+    const state = this.windows.peek(this.getStorageKey(policyName, key));
 
     const windowStart = this.getWindowStart(this.now(), policy.windowMs);
     const used = state?.windowStart === windowStart ? state.count : 0;
