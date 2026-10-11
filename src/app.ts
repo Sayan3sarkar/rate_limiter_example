@@ -1,7 +1,7 @@
 import cors from "cors";
 import express, { Express, Router } from "express";
 import { config } from "./config";
-import { errorHandler } from "./middlewares";
+import { errorHandler, notFoundHandler } from "./middlewares";
 
 const app = express();
 export const configureExpress = (app: Express, routers: Router[]) => {
@@ -9,6 +9,7 @@ export const configureExpress = (app: Express, routers: Router[]) => {
     .use(cors())
     .use(express.json())
     .use(config.prefix, routers)
+    .use(notFoundHandler)
     .use(errorHandler);
 };
 export default app;

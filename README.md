@@ -1,8 +1,6 @@
 # Rate Limiter Example
 
-An Express + TypeScript service that will implement a **rate limiter using the fixed window algorithm**.
-
-> **Status:** work in progress. The project scaffolding (server, config, routing, health check) is in place; the rate limiter itself will be added in upcoming PRs, along with details on how it works and how to configure it.
+An Express + TypeScript decision service that implements a **rate limiter using the fixed window algorithm**. Other services call it to ask whether a request should be allowed.
 
 ## Tech stack
 
@@ -29,7 +27,9 @@ The server starts on `http://localhost:3000` by default.
 | `npm run dev`       | Run the server in watch mode with `tsx`      |
 | `npm run build`     | Compile TypeScript to `dist/`                |
 | `npm start`         | Run the compiled server from `dist/`         |
-| `npm run typecheck` | Type-check without emitting files            |
+| `npm run typecheck` | Type-check `src/` and `tests/` without emitting files |
+| `npm test`          | Run the Jest unit and integration tests      |
+| `npm run test:coverage` | Run the tests with a coverage report (`coverage/`) |
 
 ## Environment variables
 
@@ -43,11 +43,11 @@ Variables are loaded from `.env` and exposed through the `Config` class in [`src
 
 ## API
 
-| Method | Path                                          | Description                                          |
-| ------ | --------------------------------------------- | ---------------------------------------------------- |
-| `GET`  | `/rate_limiter/health`                        | Health check                                         |
-| `POST` | `/rate_limiter/v1/allow`                      | Consume one request for `key` and return a decision  |
-| `GET`  | `/rate_limiter/v1/status?key=<key>&policy=<p>` | Peek at current usage without consuming a request    |
+| Method | Path                                           | Description                                         |
+| ------ | ---------------------------------------------- | --------------------------------------------------- |
+| `GET`  | `/rate_limiter/health`                         | Health check                                        |
+| `POST` | `/rate_limiter/v1/allow`                       | Consume one request for `key` and return a decision |
+| `GET`  | `/rate_limiter/v1/status?key=<key>&policy=<p>` | Peek at current usage without consuming a request   |
 
 ### `POST /v1/allow`
 
@@ -65,6 +65,14 @@ A denied request is still a `200`, with `"allowed": false` and a `retryAfterMs` 
 
 ### `GET /v1/status`
 
+```bash
+curl "localhost:3000/rate_limiter/v1/status?key=user-123&policy=login"
+```
+
+```json
+{ "key": "user-123", "policy": "login", "limit": 5, "used": 1, "remaining": 4, "resetAt": 1791719760000 }
+```
+
 Returns `limit`, `used`, `remaining` and `resetAt` for the current window. It does not count as a request.
 
 ### Errors
@@ -81,6 +89,8 @@ All errors share one shape:
 | `400`  | `INVALID_JSON`     | Body is not valid JSON                            |
 | `404`  | `POLICY_NOT_FOUND` | `policy` is not configured                        |
 | `404`  | `NOT_FOUND`        | Unknown route                                     |
+| `413`  | `ENTITY_TOO_LARGE` | Body exceeds the 100 KB JSON limit                |
+| `415`  | `CHARSET_UNSUPPORTED` / `ENCODING_UNSUPPORTED` | Body uses an unsupported charset or content encoding |
 
 ## Policies
 
@@ -102,10 +112,15 @@ src/
 ├── errors/        # HttpError and its subclasses
 ├── health/        # Health check controller
 ├── middlewares/   # 404 and error-handling middleware
-├── rate-limiter/  # Fixed window rate limiter service, controller, schemas
-├── types/         # Shared types (Controller interface)
+├── rate-limiter/  # Fixed window rate limiter service, controller, Zod schemas
+├── types/         # Shared types (Controller interface, rate limit response types)
 ├── utils/         # Zod validation helper
 ├── context.ts     # Registers controllers and exposes their routers
 ├── app.ts         # Configures the Express app (middleware, routes)
 └── server.ts      # Entry point: starts the HTTP server, handles graceful shutdown
+
+tests/
+├── helpers/       # Fake clock and test app builder
+├── unit/          # Service, schema, validation, errors, middleware, config
+└── integration/   # HTTP tests via Supertest
 ```
